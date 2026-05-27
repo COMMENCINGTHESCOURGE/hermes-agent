@@ -3068,6 +3068,40 @@ class AIAgent:
 
     # ── Per-turn primary restoration ─────────────────────────────────────
 
+    def set_specialization(self, spec_name: str):
+        """
+        Switch the agent's primary model and fallback chain to a specific specialization.
+        Example: spec_name='coding', 'reasoning', 'vision'.
+        """
+        if spec_name not in self._specializations:
+            logger.warning("Specialization '%s' not found. Falling back to default.", spec_name)
+            spec_name = "default" if "default" in self._specializations else None
+
+        if not spec_name:
+            logger.error("No valid specialization found for '%s'.")
+            return False
+
+        specs = self._specializations[spec_name]
+        if not specs or not isinstance(specs, list):
+            return False
+
+        # Best AI first: The first model in the list becomes the primary
+        primary = specs[0]
+        self.model = primary.get("model")
+        self.provider = primary.get("provider")
+        
+        # The rest become the fallback chain
+        self._fallback_chain = specs[1:]
+        self._fallback_index = 0
+        self._fallback_activated = False
+        
+        # Rebuild client to apply changes immediately
+        self._replace_primary_openai_client(reason=f"specialization_switch_{spec_name}")
+        
+        self._emit_status(f"🎯 Switched to {spec_name} specialization: {self.model} ({self.provider})")
+        logger.info("Switched to %s specialization: %s (%s)", spec_name, self.model, self.provider)
+        return True
+
     def _restore_primary_runtime(self) -> bool:
         """Forwarder — see ``agent.agent_runtime_helpers.restore_primary_runtime``."""
         from agent.agent_runtime_helpers import restore_primary_runtime
